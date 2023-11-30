@@ -60,3 +60,63 @@ class my_edit(Command):
         # This is a generic tab-completion function that iterates through the
         # content of the current directory.
         return self._tab_directory_content()
+
+# from https://github.com/ranger/ranger/wiki/Custom-Commands
+class toggle_flat(Command):
+    """
+    :toggle_flat
+
+    Flattens or unflattens the directory view.
+    """
+
+    def execute(self):
+        if self.fm.thisdir.flat == 0:
+            self.fm.thisdir.unload()
+            self.fm.thisdir.flat = -1
+            self.fm.thisdir.load_content()
+        else:
+            self.fm.thisdir.unload()
+            self.fm.thisdir.flat = 0
+            self.fm.thisdir.load_content()
+
+class ExtractUserComment(Command):
+    """:extractusercomment
+
+    Extracts the 'User Comment' metadata from the selected image and copies it to the clipboard.
+    """
+
+    def execute(self):
+        import subprocess
+        file = self.fm.thisfile.path
+        command = "exiftool -UserComment " + file
+        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
+        output, error = process.communicate()
+        if error:
+            self.fm.notify("Error: " + str(error), bad=True)
+        else:
+            comment = output.decode('utf-8').split(':')[1].strip()
+            pbcopy = subprocess.Popen(['pbcopy'], stdin=subprocess.PIPE)
+            pbcopy.stdin.write(comment.encode('utf-8'))
+            pbcopy.stdin.close()
+            self.fm.notify("User Comment copied to clipboard")
+
+class bigger_images(Command):
+    """:bigger_images
+
+    increase the image display size by hacking the iterm2 font width. Wraps around.
+    """
+
+    def execute(self):
+        width = self.fm.settings.get('iterm2_font_width')
+        height = self.fm.settings.get('iterm2_font_height')
+        width = round(1.5*width)
+        height = round(1.5*height)
+        if width > 30:
+            width = 8
+            height = 11
+        self.fm.settings.set('iterm2_font_width', width)
+        self.fm.settings.set('iterm2_font_height', height)
+        summary = f"width={width} height={height}"
+        self.fm.notify(summary)
+        self.fm.ui.status.need_redraw = True
+        self.fm.ui.need_redraw = True

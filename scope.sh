@@ -127,10 +127,10 @@ handle_image() {
 
     local mimetype="${1}"
     case "${mimetype}" in
-        ## SVG
-        # image/svg+xml|image/svg)
-        #     convert -- "${FILE_PATH}" "${IMAGE_CACHE_PATH}" && exit 6
-        #     exit 1;;
+        # SVG
+         image/svg+xml|image/svg)
+             convert -- "${FILE_PATH}" "${IMAGE_CACHE_PATH}" && exit 6
+             exit 1;;
 
         ## DjVu
         # image/vnd.djvu)
@@ -154,20 +154,20 @@ handle_image() {
             exit 7;;
 
         ## Video
-        # video/*)
-        #     # Thumbnail
-        #     ffmpegthumbnailer -i "${FILE_PATH}" -o "${IMAGE_CACHE_PATH}" -s 0 && exit 6
-        #     exit 1;;
+          video/*)
+              # Thumbnail
+              ffmpegthumbnailer -i "${FILE_PATH}" -o "${IMAGE_CACHE_PATH}" -s 0 && exit 6
+              exit 1;;
 
         ## PDF
-        # application/pdf)
-        #     pdftoppm -f 1 -l 1 \
-        #              -scale-to-x "${DEFAULT_SIZE%x*}" \
-        #              -scale-to-y -1 \
-        #              -singlefile \
-        #              -jpeg -tiffcompression jpeg \
-        #              -- "${FILE_PATH}" "${IMAGE_CACHE_PATH%.*}" \
-        #         && exit 6 || exit 1;;
+         application/pdf)
+             pdftoppm -f 1 -l 1 \
+                      -scale-to-x "${DEFAULT_SIZE%x*}" \
+                      -scale-to-y -1 \
+                      -singlefile \
+                      -jpeg -tiffcompression jpeg \
+                      -- "${FILE_PATH}" "${IMAGE_CACHE_PATH%.*}" \
+                 && exit 6 || exit 1;;
 
 
         ## ePub, MOBI, FB2 (using Calibre)
@@ -239,27 +239,43 @@ handle_image() {
         #     ;;
     esac
 
-    # openscad_image() {
-    #     TMPPNG="$(mktemp -t XXXXXX.png)"
-    #     openscad --colorscheme="${OPENSCAD_COLORSCHEME}" \
-    #         --imgsize="${OPENSCAD_IMGSIZE/x/,}" \
-    #         -o "${TMPPNG}" "${1}"
-    #     mv "${TMPPNG}" "${IMAGE_CACHE_PATH}"
-    # }
+     # create an openscad file that imports another file
+     openscad_image_copy() {
+         touch /tmp/here
+         # TMP_SCAD=$(mktmp -t XXXXXXX.scad")
+         TMP_SCAD="/tmp/aa.scad"
+         echo "import(\"$1\");" > "${TMP_SCAD}"
+         TMPPNG="$(mktemp -t XXXXXX.png)"
+         preview -a OpenSCAD --args --colorscheme="${OPENSCAD_COLORSCHEME}" \
+             --imgsize="${OPENSCAD_IMGSIZE/x/,}" \
+             --render --viewall --autocenter \
+             -o "${TMPPNG}" "${TMP_SCAD}"
+         mv "${TMPPNG}" "${IMAGE_CACHE_PATH}"
+     }
 
-    # case "${FILE_EXTENSION_LOWER}" in
-    #     ## 3D models
-    #     ## OpenSCAD only supports png image output, and ${IMAGE_CACHE_PATH}
-    #     ## is hardcoded as jpeg. So we make a tempfile.png and just
-    #     ## move/rename it to jpg. This works because image libraries are
-    #     ## smart enough to handle it.
-    #     csg|scad)
-    #         openscad_image "${FILE_PATH}" && exit 6
-    #         ;;
-    #     3mf|amf|dxf|off|stl)
-    #         openscad_image <(echo "import(\"${FILE_PATH}\");") && exit 6
-    #         ;;
-    # esac
+     openscad_image() {
+         TMPPNG="$(mktemp -t XXXXXX.png)"
+         openscad --colorscheme="${OPENSCAD_COLORSCHEME}" \
+             --imgsize="${OPENSCAD_IMGSIZE/x/,}" \
+             -o "${TMPPNG}" "${1}"
+         mv "${TMPPNG}" "${IMAGE_CACHE_PATH}"
+     }
+
+     case "${FILE_EXTENSION_LOWER}" in
+         ## 3D models
+         ## OpenSCAD only supports png image output, and ${IMAGE_CACHE_PATH}
+         ## is hardcoded as jpeg. So we make a tempfile.png and just
+         ## move/rename it to jpg. This works because image libraries are
+         ## smart enough to handle it.
+         csg|scad)
+             openscad_image "${FILE_PATH}" && exit 6
+             ;;
+         3mf|amf|dxf|off|stl)
+             touch /tmp/here1
+             openscad_image_copy "${FILE_PATH}" && exit 6
+             # openscad_image <(echo "import(\"${FILE_PATH}\");") && exit 6
+             ;;
+     esac
 }
 
 handle_mime() {
@@ -341,7 +357,10 @@ handle_fallback() {
 
 MIMETYPE="$( file --dereference --brief --mime-type -- "${FILE_PATH}" )"
 if [[ "${PV_IMAGE_ENABLED}" == 'True' ]]; then
+    touch /tmp/images_enabled
     handle_image "${MIMETYPE}"
+  else
+    touch /tmp/images_not_enabled
 fi
 handle_extension
 handle_mime "${MIMETYPE}"
